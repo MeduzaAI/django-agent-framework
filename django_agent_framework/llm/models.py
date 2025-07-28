@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union, Type, TypeVar
+from typing import Any, Dict, List, Optional, Union, Type, TypeVar, Literal, TypeAlias
 from enum import Enum
 import json
 
@@ -51,14 +51,6 @@ class Tool:
 
 
 @dataclass
-class StructuredOutputSchema:
-    name: str
-    description: Optional[str]
-    schema: Dict[str, Any]
-    strict: bool = True
-
-
-@dataclass
 class TokenUsage:
     input_tokens: Optional[int]
     output_tokens: Optional[int]
@@ -68,42 +60,36 @@ class TokenUsage:
 
 
 @dataclass
-class LLMResponse:
-    content: Optional[str]
-    tool_calls: Optional[List[ToolCall]] = None
-    usage: Optional[TokenUsage] = None
-    model: Optional[str] = None
-    finish_reason: Optional[str] = None
-    structured_output: Optional[Dict[str, Any]] = None
-    raw_response: Optional[Any] = None
-
-    def parse_structured_output(self, target_class: Type) -> Optional[Any]:
-        '''Parse structured output into a specific dataclass or type'''
-        if not self.structured_output:
-            return None
-
-        if hasattr(target_class, '__dataclass_fields__'):
-            return target_class(**self.structured_output)
-
-        return target_class(self.structured_output)
+class PromptPart:
+    content: Union[str, AudioPart, FilePart]
+    role: MessageRole = MessageRole.USER
 
 
 @dataclass
-class StreamingChunk:
-    content: Optional[str] = None
-    tool_calls: Optional[List[ToolCall]] = None
-    finish_reason: Optional[str] = None
+class TextResponsePart:
+    content: str
+    type: Literal['text'] = 'text'
+
+
+@dataclass
+class ToolCallPart:
+    tool_call_id: str
+    tool_name: str
+    arguments: dict[str, Any]
+
+    type: Literal['tool_call'] = 'tool_call'
+
+
+@dataclass
+class LLMResponse:
+    parts: list[Union[TextResponsePart, ToolCallPart]]
     usage: Optional[TokenUsage] = None
-    structured_output: Optional[Dict[str, Any]] = None
+    model: Optional[str] = None
 
 
 @dataclass
 class LLMRequest:
-    messages: List[ChatMessage]
-    model: str
-    tools: Optional[List[Tool]] = None
-    response_format: ResponseFormat = ResponseFormat.TEXT
-    structured_output_schema: Optional[StructuredOutputSchema] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    stream: bool = False
+    parts: list[Union[PromptPart]]
+
+
+Messages: TypeAlias = list[Union[LLMRequest, LLMResponse]]

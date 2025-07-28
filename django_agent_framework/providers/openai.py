@@ -1,23 +1,21 @@
+import json
 import os
 from typing import Optional, Type
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from openai import AsyncOpenAI
 from openai.types.responses import (
-    ResponseInputItemParam,
     EasyInputMessageParam,
     FunctionToolParam,
     Response as OpenAIResponse,
 )
 
-from .base import BaseLLMProvider
-from ..models import ChatMessage, Tool, LLMResponse, TokenUsage
-from openai import (
-    OpenAI,
-)
+from .base import BaseProvider
+from django_agent_framework.llm.models import ChatMessage, Tool, LLMResponse, TokenUsage, TextResponsePart, ToolCallPart
 
 
-class OpenAIProvider(BaseLLMProvider):
+class OpenAIProvider(BaseProvider):
     def __init__(self, api_key: str = None, base_url: str = None, **kwargs):
         self.api_key = api_key or os.environ.get('OPENAI_API_KEY') or getattr(settings, 'OPENAI_API_KEY')
         self.base_url = base_url or os.environ.get('OPENAI_BASE_URL')
@@ -27,9 +25,9 @@ class OpenAIProvider(BaseLLMProvider):
                 'Please set OPENAI_API_KEY environment variable if you want to use OpenAIProvider.'
             )
 
-        self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+        self.client = AsyncOpenAI(api_key=self.api_key, base_url=base_url)
 
-    def generate(
+    async def generate(
         self,
         model: str,
         messages: list[ChatMessage],
@@ -39,15 +37,12 @@ class OpenAIProvider(BaseLLMProvider):
         max_tokens: Optional[int] = None,
         **kwargs,
     ) -> LLMResponse:
-        messages = self._prepare_messages(messages)
+        messages = [EasyInputMessageParam(content=message.content, role=message.role.value) for message in messages]
         tools = self._prepare_tools(tools)
-        response = self.client.responses.create(
+        response = await self.client.responses.create(
             model=model, input=messages, tools=tools, max_output_tokens=max_tokens, temperature=temperature, **kwargs
         )
         return self._process_response(response)
-
-    def _prepare_messages(self, messages: list[ChatMessage]) -> list[ResponseInputItemParam]:
-        return [EasyInputMessageParam(content=message.content, role=message.role.value) for message in messages]
 
     def _prepare_tools(self, tools: list[Tool]) -> list[FunctionToolParam]:
         return [
@@ -65,10 +60,11 @@ class OpenAIProvider(BaseLLMProvider):
         response_parts = []
         for output in response.output:
             if output.type == 'message':
-                text_message = self._parse_text_message(output)
-                response_parts.append(text_message)
+                text = ''.join([content.text for content in output.content if content.type == 'output_text'])
+                response_parts.append(TextResponsePart(content=text))
             if output.type == 'tool_call':
-                tool_call = self._parse_tool_call(output)
+                arguments = json.loads(output.arguments)
+                tool_call = ToolCallPart(tool_call_id=output.call_id, tool_name=output.name, arguments=arguments)
                 response_parts.append(tool_call)
 
         openai_usage = response.usage.model_dump() if response.usage else {}
@@ -78,4 +74,10 @@ class OpenAIProvider(BaseLLMProvider):
             cached_input_tokens=openai_usage.get('input_token_details', {}).get('cached_tokens'),
             cached_output_tokens=openai_usage.get('output_token_details', {}).get('cached_tokens'),
             total_tokens=openai_usage.get('total_tokens'),
+        )
+
+        return LLMResponse(
+            parts=response_parts,
+            usage=usage,
+            model=response.model,
         )

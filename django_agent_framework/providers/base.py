@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, Type
-from ..models import LLMResponse, StreamingChunk, ChatMessage, Tool
+from typing import Optional, Type, AsyncIterator
+from django_agent_framework.llm.models import LLMResponse, StreamingChunk, ChatMessage, Tool
 
 
-class BaseLLMProvider(ABC):
+class BaseProvider(ABC):
     @abstractmethod
-    def generate(
+    async def generate(
         self,
         model: str,
         messages: list[ChatMessage],
@@ -19,7 +19,7 @@ class BaseLLMProvider(ABC):
         pass
 
     @abstractmethod
-    def stream(
+    async def stream(
         self,
         model: str,
         messages: list[ChatMessage],
@@ -28,6 +28,6 @@ class BaseLLMProvider(ABC):
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         **kwargs,
-    ) -> Iterator[StreamingChunk]:
+    ) -> AsyncIterator[StreamingChunk]:
         """Stream response chunks from the LLM"""
         pass
