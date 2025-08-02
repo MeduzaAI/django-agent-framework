@@ -18,20 +18,21 @@ back to the defaults.
 """
 
 from django.conf import settings
+
 # Import from `django.core.signals` instead of the official location
 # `django.test.signals` to avoid importing the test module unnecessarily.
 from django.core.signals import setting_changed
 from django.utils.module_loading import import_string
 
 
-
 DEFAULTS = {
-    'llm_providers': {
+    'provider': {
         'default': {
-            'backend': 'django_agent_framework.llm_providers.openai.OpenAILLMProvider',
+            'class': 'django_agent_framework.providers.openai.OpenAILLMProvider',
         }
     }
 }
+
 
 def perform_import(val, setting_name):
     """
@@ -83,7 +84,9 @@ class AgentFrameworkSettings:
         setattr(self, attr, val)
         return val
 
+
 agent_settings = AgentFrameworkSettings(None, DEFAULTS)
+
 
 def reload_api_settings(*args, **kwargs):
     setting = kwargs['setting']

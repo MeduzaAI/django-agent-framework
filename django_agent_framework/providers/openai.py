@@ -10,14 +10,11 @@ from openai.types.responses import (
     Response as OpenAIResponse,
 )
 
-from .base import BaseLLMProvider
-from ..models import ChatMessage, Tool, LLMResponse, TokenUsage
-from openai import (
-    OpenAI,
-)
+from .base import BaseProvider
+from openai import OpenAI
 
 
-class OpenAIProvider(BaseLLMProvider):
+class OpenAIProvider(BaseProvider):
     def __init__(self, api_key: str = None, base_url: str = None, **kwargs):
         self.api_key = api_key or os.environ.get('OPENAI_API_KEY') or getattr(settings, 'OPENAI_API_KEY')
         self.base_url = base_url or os.environ.get('OPENAI_BASE_URL')
